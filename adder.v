@@ -1,5 +1,3 @@
-`include "sla.v";
-`include "mux.v"
 
 module full_adder_2bit(
     input wire a,
@@ -20,7 +18,7 @@ module full_adder_32bit(
     output wire [31:0] sum,
     output wire carry_out
 );
-    wire [31:0] carry;
+    wire [32:0] carry;
     assign carry[0] = carry_in;
 
     genvar i;
@@ -39,35 +37,35 @@ module full_adder_32bit(
 endmodule
 
 module multiply(
-    input wire [15:0] a,
-    input wire [15:0] b,
-    output wire [31:0] product,
+    input wire [7:0] a,
+    input wire [7:0] b,
+    output wire [31:0] product
 );
-    wire [31:0] in0,in1;
-    
-    assign in0 = {{16{a[15]}}, a};
-    assign in1 = {{16{b[15]}}, b};
-
-    output wire [31:0] out [7:0];
-    output wire [31:0] out_muxed [7:0];
-    output wire [31:0] out_interm [7:0];
+    wire [31:0] out0, out1, out2, out3, out4, out5, out6, out7;
+    wire [31:0] out_muxed [7:0];
+    wire [31:0] out_interm [7:0];
 
     wired_shifter shifter (
-        .in(in1[15:0]),
-        .out(out)
+        .in(a),
+        .out0(out0),
+        .out1(out1),
+        .out2(out2),
+        .out3(out3),
+        .out4(out4),
+        .out5(out5),
+        .out6(out6),
+        .out7(out7)
     );
 
-    genvar i;
-    generate
-        for (i = 0; i < 8; i = i + 1) begin : mux_loop
-            mux_32_2x1 mux (
-                .sel(b[i]),
-                .in0({32{1'b0}}),
-                .in1(out[i]),
-                .out(out_muxed[i])
-            );
-        end
-    endgenerate
+    // Assign to array for easier indexing
+    assign out_muxed[0] = (b[0]) ? out0 : 32'b0;
+    assign out_muxed[1] = (b[1]) ? out1 : 32'b0;
+    assign out_muxed[2] = (b[2]) ? out2 : 32'b0;
+    assign out_muxed[3] = (b[3]) ? out3 : 32'b0;
+    assign out_muxed[4] = (b[4]) ? out4 : 32'b0;
+    assign out_muxed[5] = (b[5]) ? out5 : 32'b0;
+    assign out_muxed[6] = (b[6]) ? out6 : 32'b0;
+    assign out_muxed[7] = (b[7]) ? out7 : 32'b0;
 
     assign out_interm[0] = out_muxed[0];
     genvar j;
@@ -84,4 +82,4 @@ module multiply(
     endgenerate
 
     assign product = out_interm[7];
-endmodule   
+endmodule

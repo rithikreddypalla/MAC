@@ -28,7 +28,6 @@ module mux_32_2x1(
             );
         end
     endgenerate
-);
 
 endmodule
 
