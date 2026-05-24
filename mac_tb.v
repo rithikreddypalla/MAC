@@ -6,6 +6,7 @@ module mac_tb;
     reg [7:0] a;
     reg [7:0] b;
     wire [31:0] result;
+    wire [31:0] product;
 
     mac uut (
         .clk(clk),
@@ -14,6 +15,8 @@ module mac_tb;
         .b(b),
         .result(result)
     );
+    // Expose product from the MAC
+    assign product = uut.product;
 
     integer infile, code, i;
     integer a_in, b_in;
@@ -44,19 +47,19 @@ module mac_tb;
             code = $fgets(line, infile);
             $display("Read line: %s", line);
             code = $sscanf(line, "%d %d", a_in, b_in);
-            $display("sscanf code: %0d, a_in: %0d, b_in: %0d", code, a_in, b_in);
+            $display("a_in: %0d, b_in: %0d", $signed(a_in), $signed(b_in));
             if (code == 2) begin
                 a = a_in[7:0];
                 b = b_in[7:0];
                 @(posedge clk);
                 #1; // allow register to update
-                $display("a = %0d, b = %0d, result = %0d", a, b, result);
+                $display("a = %0d, b = %0d, product = %0d, result = %0d", $signed(a), $signed(b), $signed(product), $signed(result));
             end else begin
                 $display("Skipping line (not parsed as two numbers)");
             end
         end
         $fclose(infile);
-        $display("Final accumulated result = %0d", result);
+        $display("Final accumulated result = %0d", $signed(result));
         $display("Testbench completed.");
         $finish;
     end
