@@ -29,7 +29,7 @@ module mac(
     wire [7:0] a_neg;
 
     adder_8bit adder (
-        .a(a_reg_out_in_reg),
+        .a(a_neg_out_in_reg),
         .b(8'b0),
         .carry_in(1'b1), // for 2's complement
         .sum(a_neg),
@@ -67,17 +67,18 @@ module mac(
         .product(product)
     );
 
-    wire [32:0] product_ext;
-    assign product_ext = {16'b{product[15]}, product}; // extend to 32 bits
+    wire [31:0] product_ext;
+    assign product_ext = {16{product[15]}, product}; // extend to 32 bits
 
     wire add_sig_out_acc_reg;
+    wire [31:0] product_out_acc_reg;
 
     accumulate_register acc_reg (
         .product(product_ext),
         .add_sig(1'b1),
         .clk(clk),
         .rst(rst),
-        .product_out(acc_in),
+        .product_out(product_out_acc_reg),
         .add_sig_out(add_sig_out_acc_reg)
     );
 
@@ -94,7 +95,7 @@ module mac(
     
     full_adder_32bit adder(
         .a(acc_out),
-        .b(product),
+        .b(product_out_acc_reg),
         .carry_in(1'b0),
         .sum(acc_in),
         .carry_out()
