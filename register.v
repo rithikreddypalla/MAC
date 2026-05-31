@@ -165,3 +165,21 @@ module accumulator_register(
     end
 
 endmodule
+
+module shift_register_8bit(
+    input wire in,
+    input wire clk,
+    input wire rst,
+    output wire out
+);
+
+    reg [7:0] regis;
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            regis <= 8'b0;
+        end else begin
+            regis <= {in, regis[7:1]};
+        end
+    end
+    assign out = regis[0];
+endmodule

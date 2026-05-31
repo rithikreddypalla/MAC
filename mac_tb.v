@@ -9,7 +9,7 @@ module mac_tb;
     wire [31:0] result;
 
     // Internal signal wires for observation
-    wire [7:0] a_reg_out_in_reg, b_reg_out_in_reg, a_neg_out_in_reg;
+    wire [7:0] a_reg_out_in_reg, b_reg_out_in_reg, a_comp_in;
     wire setup_out_in_reg;
     wire [7:0] a_reg_out_mul_reg, b_reg_out_mul_reg, a_neg_out_mul_reg;
     wire setup_out_mul_reg;
@@ -32,16 +32,13 @@ module mac_tb;
     assign a_reg_out_in_reg = uut.a_reg_out_in_reg;
     assign b_reg_out_in_reg = uut.b_reg_out_in_reg;
     assign setup_out_in_reg = uut.setup_out_in_reg;
-    assign a_neg_out_in_reg = uut.a_neg_out_in_reg;
+    assign a_comp_in = uut.a_neg;
     assign a_reg_out_mul_reg = uut.a_reg_out_mul_reg;
     assign b_reg_out_mul_reg = uut.b_reg_out_mul_reg;
     assign a_neg_out_mul_reg = uut.a_neg_out_mul_reg;
     assign setup_out_mul_reg = uut.setup_out_mul_reg;
     assign product = uut.product;
-    assign product_ext = uut.product_ext;
     assign add_sig_out_acc_reg = uut.add_sig_out_acc_reg;
-    assign product_out_acc_reg = uut.product_out_acc_reg;
-    assign acc_in = uut.acc_in;
     assign acc_out = uut.acc_out;
 
     // Clock generation
@@ -99,17 +96,24 @@ module mac_tb;
 
     // Monitor outputs and internal states
     initial begin
-        $display("Time\tclk\trst\ta\tb\tnew_data\tacc_out\tacc_in\tproduct\ta_reg_in\tb_reg_in\ta_neg_in\ta_reg_mul\tb_reg_mul\ta_neg_mul\tprod_ext\tprod_acc_reg");
         $display("(all values signed decimal)");
         forever begin
             @(posedge clk);
-            $display("%0t\t%b\t%b\t%0d\t%0d\t%b\t%0d\t%0d\t%0d\t%0d\t%0d\t%0d\t%0d\t%0d\t%0d\t%0d\t%0d",
-                $time, clk, rst, $signed(a), $signed(b), new_data,
-                $signed(acc_out), $signed(acc_in), $signed(product),
-                $signed(a_reg_out_in_reg), $signed(b_reg_out_in_reg), $signed(a_neg_out_in_reg),
-                $signed(a_reg_out_mul_reg), $signed(b_reg_out_mul_reg), $signed(a_neg_out_mul_reg),
-                $signed(product_ext), $signed(product_out_acc_reg)
-            );
+            $display("\nCycle @ %0t", $time);
+            $display("clk = %b", clk);
+            $display("rst = %b", rst);
+            $display("a = %0d", $signed(a));
+            $display("b = %0d", $signed(b));
+            $display("new_data = %b", new_data);
+            $display("acc_out = %0d", $signed(acc_out));
+            $display("acc_in = %0d", $signed(acc_in));
+            $display("product = %0d", $signed(product));
+            $display("a_reg_in = %0d", $signed(a_reg_out_in_reg));
+            $display("b_reg_in = %0d", $signed(b_reg_out_in_reg));
+            $display("a_neg_in = %0d", $signed(a_comp_in));
+            $display("a_reg_mul = %0d", $signed(a_reg_out_mul_reg));
+            $display("b_reg_mul = %0d", $signed(b_reg_out_mul_reg));
+            $display("a_neg_mul = %0d", $signed(a_neg_out_mul_reg));
         end
     end
     initial begin

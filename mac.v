@@ -24,12 +24,12 @@ module mac(
 
 
 
-    wire [7:0] a_neg_out_in_reg;
-    assign a_neg_out_in_reg = ~a_reg_out_in_reg; // 1's complement
+    wire [7:0] a_comp_in;
+    assign a_comp_in = ~a_reg_out_in_reg; // 1's complement
     wire [7:0] a_neg;
 
-    adder_8bit adder (
-        .a(a_neg_out_in_reg),
+    full_adder_8bit adder_neg (
+        .a(a_comp_in),
         .b(8'b0),
         .carry_in(1'b1), // for 2's complement
         .sum(a_neg),
@@ -37,8 +37,9 @@ module mac(
     );
 
 
+
     wire [7:0] a_reg_out_mul_reg, b_reg_out_mul_reg, a_neg_out_mul_reg;
-    wire setup_out_mul_reg;
+    wire setup_out_mul_reg, setup_out_shifted;
 
     multiplier_register mul_reg (
         .a(a_reg_out_in_reg),
@@ -51,6 +52,14 @@ module mac(
         .b_out(b_reg_out_mul_reg),
         .a_neg_out(a_neg_out_mul_reg),
         .setup_out(setup_out_mul_reg)
+    );
+
+    // Insert shift register for setup signal
+    shift_register_8bit setup_shift_reg (
+        .in(setup_out_mul_reg),
+        .clk(clk),
+        .rst(rst),
+        .out(setup_out_shifted)
     );
 
 
@@ -68,14 +77,14 @@ module mac(
     );
 
     wire [31:0] product_ext;
-    assign product_ext = {16{product[15]}, product}; // extend to 32 bits
+    assign product_ext = {{16{product[15]}}, product}; // extend to 32 bits
 
     wire add_sig_out_acc_reg;
     wire [31:0] product_out_acc_reg;
 
-    accumulate_register acc_reg (
+    accumulator_register acc_reg (
         .product(product_ext),
-        .add_sig(1'b1),
+        .add_sig(setup_out_shifted),
         .clk(clk),
         .rst(rst),
         .product_out(product_out_acc_reg),
