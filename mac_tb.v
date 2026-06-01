@@ -3,121 +3,113 @@
 module mac_tb;
     reg clk;
     reg rst;
-    reg [7:0] a;
-    reg [7:0] b;
+    reg signed [7:0] a;
+    reg signed [7:0] b;
     reg new_data;
-    wire [31:0] result;
+    wire signed [31:0] result;
+    wire result_valid;
 
-    // Internal signal wires for observation
-    wire [7:0] a_reg_out_in_reg, b_reg_out_in_reg, a_comp_in;
-    wire setup_out_in_reg;
-    wire [7:0] a_reg_out_mul_reg, b_reg_out_mul_reg, a_neg_out_mul_reg;
-    wire setup_out_mul_reg;
-    wire [15:0] product;
-    wire [31:0] product_ext;
-    wire add_sig_out_acc_reg;
-    wire [31:0] product_out_acc_reg;
-    wire [31:0] acc_in, acc_out;
-
-    mac uut (
+    mac dut (
         .clk(clk),
         .rst(rst),
         .a(a),
         .b(b),
         .new_data(new_data),
-        .result(result)
+        .result(result),
+        .result_valid(result_valid)
     );
 
-    // Assign internal signals from MAC instance
-    assign a_reg_out_in_reg = uut.a_reg_out_in_reg;
-    assign b_reg_out_in_reg = uut.b_reg_out_in_reg;
-    assign setup_out_in_reg = uut.setup_out_in_reg;
-    assign a_comp_in = uut.a_neg;
-    assign a_reg_out_mul_reg = uut.a_reg_out_mul_reg;
-    assign b_reg_out_mul_reg = uut.b_reg_out_mul_reg;
-    assign a_neg_out_mul_reg = uut.a_neg_out_mul_reg;
-    assign setup_out_mul_reg = uut.setup_out_mul_reg;
-    assign product = uut.product;
-    assign add_sig_out_acc_reg = uut.add_sig_out_acc_reg;
-    assign acc_out = uut.acc_out;
+    initial clk = 1'b0;
+    always #5 clk = ~clk;
 
-    // Clock generation
-    initial clk = 0;
-    always #5 clk = ~clk; // 10ns period
-
-    integer cycle_count = 0;
-    integer infile, code, a_in, b_in, input_idx;
+    integer expected;
+    integer i;
+    integer infile;
+    integer code;
+    integer a_in;
+    integer b_in;
+    integer num_vectors;
     reg [255:0] line;
-    reg [7:0] a_values [0:31];
-    reg [7:0] b_values [0:31];
-    integer num_inputs = 0;
+    reg signed [7:0] a_values [0:255];
+    reg signed [7:0] b_values [0:255];
+
+    task automatic apply_and_check;
+        input signed [7:0] va;
+        input signed [7:0] vb;
+        begin
+            integer wait_cycles;
+
+            @(negedge clk);
+            a = va;
+            b = vb;
+            new_data = 1'b1;
+            @(negedge clk);
+            new_data = 1'b0;
+
+            expected = expected + (va * vb);
+
+            wait_cycles = 0;
+            while (result_valid !== 1'b1 && wait_cycles < 40) begin
+                @(posedge clk);
+                wait_cycles = wait_cycles + 1;
+            end
+
+            if (wait_cycles == 40) begin
+                $display("FAIL: timeout waiting for result_valid, a=%0d b=%0d", va, vb);
+                $fatal(1);
+            end
+
+            #1;
+
+            if ($signed(result) !== expected) begin
+                $display("FAIL: a=%0d b=%0d expected=%0d got=%0d time=%0t", va, vb, expected, $signed(result), $time);
+                $fatal(1);
+            end else begin
+                $display("PASS: a=%0d b=%0d result=%0d time=%0t", va, vb, $signed(result), $time);
+            end
+        end
+    endtask
 
     initial begin
-        // Read input.txt into arrays
+        rst = 1'b1;
+        a = '0;
+        b = '0;
+        new_data = 1'b0;
+        expected = 0;
+        num_vectors = 0;
+
         infile = $fopen("input.txt", "r");
         if (infile == 0) begin
-            $display("ERROR: Could not open input.txt");
-            $finish;
+            $display("FAIL: could not open input.txt");
+            $fatal(1);
         end
-        while (!$feof(infile)) begin
+
+        while (!$feof(infile) && num_vectors < 256) begin
             code = $fgets(line, infile);
-            code = $sscanf(line, "%d %d", a_in, b_in);
-            if (code == 2) begin
-                a_values[num_inputs] = a_in[7:0];
-                b_values[num_inputs] = b_in[7:0];
-                num_inputs = num_inputs + 1;
+            if (code != 0) begin
+                code = $sscanf(line, "%d %d", a_in, b_in);
+                if (code == 2) begin
+                    a_values[num_vectors] = a_in[7:0];
+                    b_values[num_vectors] = b_in[7:0];
+                    num_vectors = num_vectors + 1;
+                end
             end
         end
         $fclose(infile);
 
-        rst = 1;
-        a = 0;
-        b = 0;
-        new_data = 0;
-        input_idx = 0;
-        #20;
-        rst = 0;
-        #10;
-
-        forever begin
-            // Every 10 cycles, load new input and pulse new_data
-            if (cycle_count % 10 == 0 && input_idx < num_inputs) begin
-                a = a_values[input_idx];
-                b = b_values[input_idx];
-                new_data = 1;
-                input_idx = input_idx + 1;
-            end else begin
-                new_data = 0;
-            end
-            cycle_count = cycle_count + 1;
-            #10;
+        if (num_vectors == 0) begin
+            $display("FAIL: input.txt has no valid vectors");
+            $fatal(1);
         end
-    end
 
-    // Monitor outputs and internal states
-    initial begin
-        $display("(all values signed decimal)");
-        forever begin
-            @(posedge clk);
-            $display("\nCycle @ %0t", $time);
-            $display("clk = %b", clk);
-            $display("rst = %b", rst);
-            $display("a = %0d", $signed(a));
-            $display("b = %0d", $signed(b));
-            $display("new_data = %b", new_data);
-            $display("acc_out = %0d", $signed(acc_out));
-            $display("acc_in = %0d", $signed(acc_in));
-            $display("product = %0d", $signed(product));
-            $display("a_reg_in = %0d", $signed(a_reg_out_in_reg));
-            $display("b_reg_in = %0d", $signed(b_reg_out_in_reg));
-            $display("a_neg_in = %0d", $signed(a_comp_in));
-            $display("a_reg_mul = %0d", $signed(a_reg_out_mul_reg));
-            $display("b_reg_mul = %0d", $signed(b_reg_out_mul_reg));
-            $display("a_neg_mul = %0d", $signed(a_neg_out_mul_reg));
+        repeat (2) @(posedge clk);
+        rst = 1'b0;
+
+        for (i = 0; i < num_vectors; i = i + 1) begin
+            apply_and_check(a_values[i], b_values[i]);
         end
-    end
-    initial begin
-        #2000; // Run simulation for 2000ns
+
+        $display("All MAC tests passed. Final accumulated result = %0d", $signed(result));
         $finish;
     end
 endmodule
