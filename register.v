@@ -9,15 +9,13 @@ module register_32bit_acc(
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             out <= 32'b0;
+        end else if (add_sig) begin
+            out <= in;
         end else begin
-            if (add_sig) begin
-                out <= in;
-            end else begin
-                out <= out;
-            end
+            out <= out;
         end
     end
-    
+
 endmodule
 
 module input_register(
@@ -81,7 +79,6 @@ module accumulator_register(
     input wire rst,
     output reg [31:0] product_out,
     output reg add_sig_out
-
 );
 
     always @(posedge clk or posedge rst) begin
@@ -108,12 +105,15 @@ module counter_8bit(
             count <= 3'b0;
             done <= 1'b0;
         end else if (enable) begin
-            if (count == 3'b111) begin
+            if (done) begin
+                count <= 3'b0;
+                done <= 1'b1;
+            end else if (count == 3'b111) begin
                 done <= 1'b1;
                 count <= 3'b0;
-            end
-            else begin
+            end else begin
                 count <= count + 1;
+                done <= 1'b0;
             end
         end
     end
@@ -126,6 +126,7 @@ module register_17bit_pin_sout(
     input wire clk,
     input wire rst,
     input wire load,
+    input wire enable,
     output reg [16:0] out
 );
 
@@ -151,17 +152,17 @@ module register_17bit_pin_sout(
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             out <= 17'b0;
+        end else if (load) begin
+            out <= in;
+        end else if (enable) begin
+            case ({out[1], out[0]})
+                2'b00: out <= {out[16], out[16:1]};
+                2'b01: out <= {add_out[7], add_out, out[8:1]};
+                2'b10: out <= {sub_out[7], sub_out, out[8:1]};
+                2'b11: out <= {out[16], out[16:1]};
+            endcase
         end else begin
-            if (load) begin
-                out <= in;
-            end else begin
-                case ({out[1], out[0]})
-                    2'b00: out <= {out[16], out[16:1]};
-                    2'b01: out <= {add_out[7], add_out, out[8:1]};
-                    2'b10: out <= {sub_out[7], sub_out, out[8:1]};
-                    2'b11: out <= {out[16], out[16:1]};
-                endcase
-            end
+            out <= out;
         end
     end
 

@@ -1,5 +1,3 @@
-`include "register.v"
-
 module full_adder_2bit(
     input wire a,
     input wire b,
@@ -70,11 +68,13 @@ module multiply(
     input wire rst,
     input wire load,
     output wire [15:0] product,
-    output wire done
+    output wire done,
+    output wire done_pulse
 );
     
     reg [2:0] count;
     wire [16:0] reg_out;
+    reg done_prev_reg;
 
     register_17bit_pin_sout reg_inst (
         .a(a),
@@ -83,6 +83,7 @@ module multiply(
         .clk(clk),
         .rst(rst),
         .load(load),
+        .enable(~done),
         .out(reg_out)
     );
 
@@ -93,6 +94,16 @@ module multiply(
         .count(count),
         .done(done)
     );
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            done_prev_reg <= 1'b0;
+        end else begin
+            done_prev_reg <= done;
+        end
+    end
+
+    assign done_pulse = done & ~done_prev_reg;
 
     assign product = reg_out[16:1];
     
