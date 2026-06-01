@@ -1,6 +1,7 @@
-5 3
+# Format: <a> <b> (signed decimal, 8-bit range)
+5 -3
 2 4
-10 7
+10 -7
 0 0
-127 1
+-127 1
 127 2

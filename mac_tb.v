@@ -7,6 +7,7 @@ module mac_tb;
     reg signed [7:0] b;
     reg new_data;
     wire signed [31:0] result;
+    wire result_valid;
 
     mac dut (
         .clk(clk),
@@ -14,7 +15,8 @@ module mac_tb;
         .a(a),
         .b(b),
         .new_data(new_data),
-        .result(result)
+        .result(result),
+        .result_valid(result_valid)
     );
 
     initial clk = 1'b0;
@@ -22,12 +24,21 @@ module mac_tb;
 
     integer expected;
     integer i;
+    integer infile;
+    integer code;
+    integer a_in;
+    integer b_in;
+    integer num_vectors;
+    reg [255:0] line;
+    reg signed [7:0] a_values [0:255];
+    reg signed [7:0] b_values [0:255];
 
     task automatic apply_and_check;
         input signed [7:0] va;
         input signed [7:0] vb;
-        input integer delay_cycles;
         begin
+            integer wait_cycles;
+
             @(negedge clk);
             a = va;
             b = vb;
@@ -37,8 +48,15 @@ module mac_tb;
 
             expected = expected + (va * vb);
 
-            for (i = 0; i < delay_cycles; i = i + 1) begin
+            wait_cycles = 0;
+            while (result_valid !== 1'b1 && wait_cycles < 40) begin
                 @(posedge clk);
+                wait_cycles = wait_cycles + 1;
+            end
+
+            if (wait_cycles == 40) begin
+                $display("FAIL: timeout waiting for result_valid, a=%0d b=%0d", va, vb);
+                $fatal(1);
             end
 
             #1;
@@ -58,15 +76,38 @@ module mac_tb;
         b = '0;
         new_data = 1'b0;
         expected = 0;
+        num_vectors = 0;
+
+        infile = $fopen("input.txt", "r");
+        if (infile == 0) begin
+            $display("FAIL: could not open input.txt");
+            $fatal(1);
+        end
+
+        while (!$feof(infile) && num_vectors < 256) begin
+            code = $fgets(line, infile);
+            if (code != 0) begin
+                code = $sscanf(line, "%d %d", a_in, b_in);
+                if (code == 2) begin
+                    a_values[num_vectors] = a_in[7:0];
+                    b_values[num_vectors] = b_in[7:0];
+                    num_vectors = num_vectors + 1;
+                end
+            end
+        end
+        $fclose(infile);
+
+        if (num_vectors == 0) begin
+            $display("FAIL: input.txt has no valid vectors");
+            $fatal(1);
+        end
 
         repeat (2) @(posedge clk);
         rst = 1'b0;
 
-        apply_and_check(8'sd3, 8'sd4, 10);
-        apply_and_check(-8'sd5, 8'sd7, 10);
-        apply_and_check(8'sd12, -8'sd3, 10);
-        apply_and_check(-8'sd8, -8'sd8, 10);
-        apply_and_check(8'sd0, -8'sd11, 10);
+        for (i = 0; i < num_vectors; i = i + 1) begin
+            apply_and_check(a_values[i], b_values[i]);
+        end
 
         $display("All MAC tests passed. Final accumulated result = %0d", $signed(result));
         $finish;
