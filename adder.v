@@ -72,7 +72,7 @@ module multiply(
     output wire done_pulse
 );
     
-    reg [2:0] count;
+    wire [2:0] count;
     wire [16:0] reg_out;
     reg done_prev_reg;
 
