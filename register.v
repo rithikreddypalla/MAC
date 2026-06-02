@@ -20,7 +20,7 @@ module input_register(
     input wire clk,
     input wire rst,
     output reg [7:0] a_out,
-    output reg [7:0] b_out,
+    output reg [7:0] b_out
 );
 
     always @(posedge clk or posedge rst) begin

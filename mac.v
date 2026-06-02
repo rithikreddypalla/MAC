@@ -117,30 +117,22 @@ module mac(
         .carry_out()
     );
 
-    wire [31:0] product_out_acc_reg;
-    accumulator_register acc_reg (
-        .in(product),
-        .clk(clk),
-        .rst(rst),
-        .out(product_out_acc_reg)
-    );
+    full_adder_32bit acc_adder (
+    .a(acc_out),       
+    .b(product),       
+    .carry_in(1'b0),
+    .sum(acc_in),
+    .carry_out()
+);
 
-    full_adder_32bit adder (
-        .a(acc_out),
-        .b(product_out_acc_reg),
-        .carry_in(1'b0),
-        .sum(acc_in),
-        .carry_out()
-    );
+register_32bit_acc acc (
+    .in(acc_in),
+    .clk(clk),
+    .rst(rst),
+    .out(acc_out)
+);
 
-    register_32bit_acc acc (
-        .in(acc_in),
-        .clk(clk),
-        .rst(rst),
-        .out(acc_out)
-    );
-
-    assign result = acc_out;
+assign result = acc_out;
 
 
 endmodule
