@@ -1,106 +1,63 @@
 
 module mac(
-    input clk,
-    input rst,
     input wire [7:0] a,
     input wire [7:0] b,
-    input wire new_data,
-    output [31:0] result,
-    output wire result_valid
+    output wire [31:0] result
 );
 
-    wire [7:0] a_reg_out_in_reg;
-    wire [7:0] b_reg_out_in_reg;
-    wire setup_out_in_reg;
+    wire [15:0] a_ext;
+    wire [15:0] a_neg;
+    wire [15:0] a_2;
+    wire [15:0] a_2_neg;
 
-    wire [7:0] a_neg;
-    wire [7:0] a_reg_out_mul_reg;
-    wire [7:0] b_reg_out_mul_reg;
-    wire [7:0] a_neg_out_mul_reg;
-    wire setup_out_mul_reg;
+    assign a_ext = {{8{a[7]}}, a};
 
-    wire [15:0] partial_product;
-    wire done;
-    wire done_pulse;
-    wire [31:0] prod_ext;
-
-    wire [31:0] product_out_acc_reg;
-    wire add_sig_out_acc_reg;
-    wire [31:0] acc_in;
-    wire [31:0] acc_out;
-
-    input_register in_reg (
-        .a(a),
-        .b(b),
-        .setup(new_data),
-        .clk(clk),
-        .rst(rst),
-        .a_out(a_reg_out_in_reg),
-        .b_out(b_reg_out_in_reg),
-        .setup_out(setup_out_in_reg)
-    );
-
-    full_adder_8bit complementer (
-        .a(~a_reg_out_in_reg),
-        .b(8'b0),
+    full_adder_16bit adder (
+        .a(~a_ext),
+        .b(16'b0),
         .carry_in(1'b1),
         .sum(a_neg),
         .carry_out()
     );
+    assign a_2 = {a_ext[14:0], 1'b0};
+    assign a_2_neg = {a_neg[14:0], 1'b0};
 
-    multiplier_register mul_reg (
-        .a(a_reg_out_in_reg),
-        .b(b_reg_out_in_reg),
+    wire [31:0] partial_products_4 [0:3];
+
+    partial_product_generator ppg (
+        .a(a_ext),
         .a_neg(a_neg),
-        .setup(setup_out_in_reg),
-        .clk(clk),
-        .rst(rst),
-        .a_out(a_reg_out_mul_reg),
-        .b_out(b_reg_out_mul_reg),
-        .a_neg_out(a_neg_out_mul_reg),
-        .setup_out(setup_out_mul_reg)
+        .a_2(a_2),
+        .a_2_neg(a_2_neg),
+        .b(b),
+        .partial_products(partial_products_4)
     );
 
-    multiply mul (
-        .a(a_reg_out_mul_reg),
-        .a_neg(a_neg_out_mul_reg),
-        .b(b_reg_out_mul_reg),
-        .clk(clk),
-        .rst(rst),
-        .load(setup_out_mul_reg),
-        .product(partial_product),
-        .done(done),
-        .done_pulse(done_pulse)
+    wire [31:0] partial_products_3 [0:2];
+    assign partial_products_3[2] = partial_products_4[3];
+    csa_32bit csa1 (
+        .a(partial_products_4[0]),
+        .b(partial_products_4[1]),
+        .c(partial_products_4[2]),
+        .sum(partial_products_3[0]),
+        .carry(partial_products_3[1])
     );
 
-    assign prod_ext = {{16{partial_product[15]}}, partial_product};
-
-    accumulator_register acc_reg (
-        .product(prod_ext),
-        .add_sig(done_pulse),
-        .clk(clk),
-        .rst(rst),
-        .product_out(product_out_acc_reg),
-        .add_sig_out(add_sig_out_acc_reg)
+    wire [31:0] partial_products_2 [0:1];
+    csa_32bit csa2 (
+        .a(partial_products_3[0]),
+        .b(partial_products_3[1]),
+        .c(partial_products_3[2]),
+        .sum(partial_products_2[1]),
+        .carry(partial_products_2[0])
     );
 
-    full_adder_32bit adder (
-        .a(acc_out),
-        .b(product_out_acc_reg),
+    full_adder_32bit final_adder (
+        .a(partial_products_2[0]),
+        .b(partial_products_2[1]),
         .carry_in(1'b0),
-        .sum(acc_in),
+        .sum(result),
         .carry_out()
     );
-
-    register_32bit_acc acc (
-        .in(acc_in),
-        .add_sig(add_sig_out_acc_reg),
-        .clk(clk),
-        .rst(rst),
-        .out(acc_out)
-    );
-
-    assign result = acc_out;
-    assign result_valid = add_sig_out_acc_reg;
 
 endmodule

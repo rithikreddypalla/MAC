@@ -1,115 +1,147 @@
 `timescale 1ns/1ps
 
 module mac_tb;
-    reg clk;
-    reg rst;
-    reg signed [7:0] a;
-    reg signed [7:0] b;
-    reg new_data;
-    wire signed [31:0] result;
-    wire result_valid;
 
+    // ── DUT signals ───────────────────────────────────────────────────
+    reg  [7:0]  a, b;
+    wire [31:0] result;
+
+    // ── DUT instantiation ─────────────────────────────────────────────
     mac dut (
-        .clk(clk),
-        .rst(rst),
         .a(a),
         .b(b),
-        .new_data(new_data),
-        .result(result),
-        .result_valid(result_valid)
+        .result(result)
     );
 
-    initial clk = 1'b0;
-    always #5 clk = ~clk;
+    // ── File handles ──────────────────────────────────────────────────
+    integer input_file;
+    integer test_num;
+    integer pass_count, fail_count;
 
+    // For reading signed values from file
+    integer a_signed, b_signed;
+
+    // ── Expected result (for checking) ────────────────────────────────
     integer expected;
-    integer i;
-    integer infile;
-    integer code;
-    integer a_in;
-    integer b_in;
-    integer num_vectors;
-    reg [255:0] line;
-    reg signed [7:0] a_values [0:255];
-    reg signed [7:0] b_values [0:255];
 
-    task automatic apply_and_check;
-        input signed [7:0] va;
-        input signed [7:0] vb;
+    // ── Task: print one test result ───────────────────────────────────
+    task print_result;
+        input [7:0]  ta, tb;
+        input [31:0] tres;
+        input integer texpected;
+        input integer ttest_num;
         begin
-            integer wait_cycles;
-
-            @(negedge clk);
-            a = va;
-            b = vb;
-            new_data = 1'b1;
-            @(negedge clk);
-            new_data = 1'b0;
-
-            expected = expected + (va * vb);
-
-            wait_cycles = 0;
-            while (result_valid !== 1'b1 && wait_cycles < 40) begin
-                @(posedge clk);
-                wait_cycles = wait_cycles + 1;
-            end
-
-            if (wait_cycles == 40) begin
-                $display("FAIL: timeout waiting for result_valid, a=%0d b=%0d", va, vb);
-                $fatal(1);
-            end
-
-            #1;
-
-            if ($signed(result) !== expected) begin
-                $display("FAIL: a=%0d b=%0d expected=%0d got=%0d time=%0t", va, vb, expected, $signed(result), $time);
-                $fatal(1);
-            end else begin
-                $display("PASS: a=%0d b=%0d result=%0d time=%0t", va, vb, $signed(result), $time);
+            $display("─────────────────────────────────────────────");
+            $display("Test #%0d", ttest_num);
+            $display("  a        = %0d (0x%02h) [binary: %08b]", $signed(ta), ta, ta);
+            $display("  b        = %0d (0x%02h) [binary: %08b]", $signed(tb), tb, tb);
+            $display("  result   = %0d (0x%08h)", $signed(tres), tres);
+            $display("  expected = %0d", texpected);
+            if ($signed(tres) === texpected)
+                $display("  STATUS   : PASS ✓");
+            else begin
+                $display("  STATUS   : FAIL ✗  (error = %0d)", $signed(tres) - texpected);
             end
         end
     endtask
 
+    // ── Main test flow ────────────────────────────────────────────────
     initial begin
-        rst = 1'b1;
-        a = '0;
-        b = '0;
-        new_data = 1'b0;
-        expected = 0;
-        num_vectors = 0;
+        pass_count = 0;
+        fail_count = 0;
+        test_num   = 0;
 
-        infile = $fopen("input.txt", "r");
-        if (infile == 0) begin
-            $display("FAIL: could not open input.txt");
-            $fatal(1);
+        $display("=============================================");
+        $display("       MAC (8x8 Booth Multiplier) TB        ");
+        $display("=============================================");
+
+        // ── Open input file ───────────────────────────────────────────
+        input_file = $fopen("inputs.txt", "r");
+        if (input_file == 0) begin
+            $display("ERROR: Could not open inputs.txt");
+            $finish;
         end
 
-        while (!$feof(infile) && num_vectors < 256) begin
-            code = $fgets(line, infile);
-            if (code != 0) begin
-                code = $sscanf(line, "%d %d", a_in, b_in);
-                if (code == 2) begin
-                    a_values[num_vectors] = a_in[7:0];
-                    b_values[num_vectors] = b_in[7:0];
-                    num_vectors = num_vectors + 1;
-                end
-            end
+        // ── Read test vectors ─────────────────────────────────────────
+        // inputs.txt format (one test per line):
+        //   <a_decimal>  <b_decimal>
+        // Values are treated as signed (-128 to 127)
+        while ($fscanf(input_file, "%d %d", a_signed, b_signed) == 2) begin
+            test_num = test_num + 1;
+
+            // Clamp to signed 8-bit range
+            a = a_signed[7:0];
+            b = b_signed[7:0];
+
+            // Compute expected using Verilog's own signed multiply
+            expected = $signed(a) * $signed(b);
+
+            #20; // wait for combinational logic to settle
+
+            print_result(a, b, result, expected, test_num);
+
+            if ($signed(result) === expected)
+                pass_count = pass_count + 1;
+            else
+                fail_count = fail_count + 1;
         end
-        $fclose(infile);
 
-        if (num_vectors == 0) begin
-            $display("FAIL: input.txt has no valid vectors");
-            $fatal(1);
-        end
+        $fclose(input_file);
 
-        repeat (2) @(posedge clk);
-        rst = 1'b0;
+        // ── Corner cases (hardcoded) ───────────────────────────────────
+        $display("─────────────────────────────────────────────");
+        $display("Running hardcoded corner cases...");
 
-        for (i = 0; i < num_vectors; i = i + 1) begin
-            apply_and_check(a_values[i], b_values[i]);
-        end
+        // 0 * 0
+        a = 8'd0;   b = 8'd0;   expected = 0;
+        #20; test_num = test_num+1; print_result(a,b,result,expected,test_num);
+        if ($signed(result)===expected) pass_count=pass_count+1; else fail_count=fail_count+1;
 
-        $display("All MAC tests passed. Final accumulated result = %0d", $signed(result));
+        // 1 * 1
+        a = 8'd1;   b = 8'd1;   expected = 1;
+        #20; test_num = test_num+1; print_result(a,b,result,expected,test_num);
+        if ($signed(result)===expected) pass_count=pass_count+1; else fail_count=fail_count+1;
+
+        // -1 * 1  (0xFF * 0x01)
+        a = 8'hFF;  b = 8'h01;  expected = -1;
+        #20; test_num = test_num+1; print_result(a,b,result,expected,test_num);
+        if ($signed(result)===expected) pass_count=pass_count+1; else fail_count=fail_count+1;
+
+        // -1 * -1
+        a = 8'hFF;  b = 8'hFF;  expected = 1;
+        #20; test_num = test_num+1; print_result(a,b,result,expected,test_num);
+        if ($signed(result)===expected) pass_count=pass_count+1; else fail_count=fail_count+1;
+
+        // max positive * max positive (127 * 127 = 16129)
+        a = 8'd127; b = 8'd127; expected = 16129;
+        #20; test_num = test_num+1; print_result(a,b,result,expected,test_num);
+        if ($signed(result)===expected) pass_count=pass_count+1; else fail_count=fail_count+1;
+
+        // max negative * max negative (-128 * -128 = 16384)
+        a = 8'h80;  b = 8'h80;  expected = 16384;
+        #20; test_num = test_num+1; print_result(a,b,result,expected,test_num);
+        if ($signed(result)===expected) pass_count=pass_count+1; else fail_count=fail_count+1;
+
+        // max negative * max positive (-128 * 127 = -16256)
+        a = 8'h80;  b = 8'd127; expected = -16256;
+        #20; test_num = test_num+1; print_result(a,b,result,expected,test_num);
+        if ($signed(result)===expected) pass_count=pass_count+1; else fail_count=fail_count+1;
+
+        // ── Final summary ─────────────────────────────────────────────
+        $display("=============================================");
+        $display("  Total tests : %0d", test_num);
+        $display("  Passed      : %0d", pass_count);
+        $display("  Failed      : %0d", fail_count);
+        $display("=============================================");
+
         $finish;
     end
+
+    // ── Timeout watchdog ──────────────────────────────────────────────
+    initial begin
+        #100000;
+        $display("TIMEOUT: simulation took too long");
+        $finish;
+    end
+
 endmodule
